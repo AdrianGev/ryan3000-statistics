@@ -1,8 +1,11 @@
 import re
-import csv
 import json
 import requests
 import os
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from urllib.parse import urlparse
+import threading
+import time
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -12,7 +15,6 @@ if not API_KEY:
     raise RuntimeError("Missing YOUTUBE_API_KEY")
 
 CHANNEL_ID = "UCjXPeBJ0L57q7548RtW99Fg"
-
 MAX_VIDEOS = 400
 
 SUB_LINE_RE = re.compile(
@@ -137,7 +139,7 @@ def extract_numbers(desc):
 
     return subs, chicks
 
-def main():
+def get_youtube_data():
     uploads = get_uploads_playlist_id()
     video_ids = get_playlist_video_ids(uploads)
     vids = get_video_snippets(video_ids)
@@ -164,22 +166,39 @@ def main():
             }
         )
 
-    # Save as JSON for web consumption
-    with open("youtube_chickens.json", "w", encoding="utf-8") as f:
-        json.dump(out, f, indent=2)
+    return out
 
-    # Also save as CSV for backup/compatibility
-    with open("youtube_chickens.csv", "w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(
-            f,
-            fieldnames=["day", "publishedAt", "title", "videoId", "subscribers", "chickens"],
-        )
-        w.writeheader()
-        w.writerows(out)
+class RequestHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        parsed_path = urlparse(self.path)
+        
+        if parsed_path.path == "/api/data":
+            try:
+                data = get_youtube_data()
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps(data).encode())
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                self.wfile.write(json.dumps({"error": str(e)}).encode())
+        else:
+            self.send_response(404)
+            self.end_headers()
 
-    missing = sum(1 for r in out if r["subscribers"] is None or r["chickens"] is None)
-    print(f"saved {len(out)} rows to youtube_chickens.json and youtube_chickens.csv")
-    print(f"rows missing subs or chickens: {missing}")
+    def log_message(self, format, *args):
+        # Suppress default logging
+        pass
+
+def run_server(port=8000):
+    server = HTTPServer(('localhost', port), RequestHandler)
+    print(f"Server running on http://localhost:{port}")
+    print("API endpoint: http://localhost:8000/api/data")
+    server.serve_forever()
 
 if __name__ == "__main__":
-    main()
+    run_server()

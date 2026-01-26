@@ -273,15 +273,22 @@
         statsEl.textContent = `Rows loaded: ${rows.length} • Missing subscribers: ${missingSubs} • Missing chickens: ${missingChick}`;
       }
 
-      async function loadRepoCSV() {
-        const res = await fetch("./youtube_chickens.csv?cb=" + Date.now());
-        const text = await res.text();
-        rows = parseCSV(text);
+      async function loadYouTubeData() {
+        try {
+          const res = await fetch("./youtube_chickens.json?cb=" + Date.now());
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+          }
+          rows = await res.json();
 
-        // force sort by day (just in case)
-        rows.sort((a, b) => Number(a.day) - Number(b.day));
+          // force sort by day (just in case)
+          rows.sort((a, b) => Number(a.day) - Number(b.day));
 
-        render();
+          render();
+        } catch (error) {
+          statsEl.textContent = `Error loading data: ${error.message}. Data will be updated automatically by GitHub Actions every 5 minutes.`;
+          console.error("Failed to load YouTube data:", error);
+        }
       }
 
       [showDeltaEl, showMultEl, showLegendEl].forEach(el =>
@@ -289,10 +296,7 @@
       );
 
       // auto-load on page open
-      loadRepoCSV().catch(err => {
-        statsEl.textContent = "Could not load youtube_chickens.csv from repo yet.";
-        console.error(err);
-      });
+      loadYouTubeData();
     </script>
   </body>
 </html>

@@ -1,8 +1,8 @@
-name: Update YouTube Chickens CSV
+name: Update YouTube Chickens Data
 
 on:
   schedule:
-    - cron: "*/5 * * * *"   # every 15 minutes
+    - cron: "*/5 * * * *"   # every 5 minutes
   workflow_dispatch:          # manually just in case yk
 
 permissions:
@@ -31,10 +31,10 @@ jobs:
         run: |
           python yt_chickens.py
 
-      - name: Commit and push CSV if changed
+      - name: Commit and push data files if changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add youtube_chickens.csv
-          git commit -m "Update youtube_chickens.csv" || echo "No changes to commit"
+          git add youtube_chickens.json youtube_chickens.csv
+          git commit -m "Update YouTube data files" || echo "No changes to commit"
           git push
