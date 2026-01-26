@@ -1,0 +1,180 @@
+/* YouTube Stats Dashboard Styles */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  margin: 0;
+  padding: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.container {
+  max-width: 1200px;
+  width: 100%;
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  padding: 40px;
+  margin: 0 auto;
+}
+
+h1 {
+  text-align: center;
+  color: #2c3e50;
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 30px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.row {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+}
+
+.card {
+  background: #f8f9fa;
+  border: 2px solid #e9ecef;
+  border-radius: 15px;
+  padding: 25px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+  width: 100%;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.12);
+}
+
+.controls {
+  margin-bottom: 25px;
+  justify-content: center;
+}
+
+.controls > div {
+  text-align: center;
+  min-width: 250px;
+}
+
+.controls b {
+  color: #495057;
+  font-size: 1.1rem;
+  display: block;
+  margin-bottom: 15px;
+}
+
+label {
+  display: block;
+  margin: 12px 0;
+  font-size: 1rem;
+  color: #6c757d;
+  cursor: pointer;
+  transition: color 0.2s ease;
+  user-select: none;
+}
+
+label:hover {
+  color: #495057;
+}
+
+input[type="checkbox"] {
+  margin-right: 10px;
+  transform: scale(1.2);
+  accent-color: #667eea;
+}
+
+canvas {
+  width: 100% !important;
+  height: 500px !important;
+  border-radius: 10px;
+}
+
+.chart-container {
+  position: relative;
+  padding: 20px 0;
+}
+
+#stats {
+  color: #6c757d;
+  font-size: 0.95rem;
+  text-align: center;
+  margin-top: 20px;
+  padding: 15px;
+  background: #f1f3f4;
+  border-radius: 10px;
+  border-left: 4px solid #667eea;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  body {
+    padding: 10px;
+  }
+  
+  .container {
+    padding: 20px;
+    border-radius: 15px;
+  }
+  
+  h1 {
+    font-size: 2rem;
+    margin-bottom: 20px;
+  }
+  
+  .controls > div {
+    min-width: 200px;
+  }
+  
+  canvas {
+    height: 400px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  h1 {
+    font-size: 1.5rem;
+  }
+  
+  .container {
+    padding: 15px;
+  }
+  
+  .card {
+    padding: 15px;
+  }
+  
+  canvas {
+    height: 300px !important;
+  }
+}
+
+/* Animation for loading */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.container {
+  animation: fadeIn 0.6s ease-out;
+}
