@@ -10,19 +10,20 @@
   <body>
     <div class="container">
       <h1>Chickens vs Subscribers</h1>
+      <p class="footnote">@ryanthreethousand on YouTube</p>
 
-      <div class="card row controls">
-        <div>
-          <b>Labels:</b>
-          <label>
+      <div class="card controls">
+        <b>Labels:</b>
+        <div class="label-bubbles">
+          <label class="bubble">
             <input type="checkbox" id="showDelta" />
             Show Δ (difference)
           </label>
-          <label>
+          <label class="bubble">
             <input type="checkbox" id="showMult" />
             Show × (multiplier)
           </label>
-          <label>
+          <label class="bubble">
             <input type="checkbox" id="showLegend" checked />
             Show legend (key)
           </label>
@@ -31,12 +32,14 @@
 
       <div class="card chart-container">
         <canvas id="chart"></canvas>
+        <p id="currentDiff"></p>
         <p id="stats" class="muted"></p>
       </div>
     </div>
 
     <script>
       const statsEl = document.getElementById("stats");
+      const currentDiffEl = document.getElementById("currentDiff");
 
       const showDeltaEl = document.getElementById("showDelta");
       const showMultEl = document.getElementById("showMult");
@@ -133,7 +136,7 @@
             const ds = chart.data.datasets[di];
             const data = ds.data;
 
-            // Offset label direction so 2 series are readable
+            // offset label direction so 2 series are readable yk
             const offsetY = di % 2 === 0 ? -14 : 14;
 
             for (let i = 1; i < data.length; i++) {
@@ -239,6 +242,32 @@
         if (chart) chart.destroy();
         chart = new Chart(document.getElementById("chart"), cfg);
 
+        // calculate current difference from latest data
+        const latestRow = rows[rows.length - 1];
+        if (latestRow && Number.isFinite(latestRow.subscribers) && Number.isFinite(latestRow.chickens)) {
+          const subCount = Number(latestRow.subscribers);
+          const chickenCount = Number(latestRow.chickens);
+          const diff = subCount - chickenCount;
+          
+          let diffText = "";
+          if (diff > 0) {
+            // subscribers are more
+            const multiplier = chickenCount > 0 ? (subCount / chickenCount).toFixed(1) : "∞";
+            diffText = `Subscribers are ${diff.toLocaleString()} more than chickens (${multiplier}x more)`;
+          } else if (diff < 0) {
+            // chickens are more
+            const multiplier = subCount > 0 ? (chickenCount / subCount).toFixed(1) : "∞";
+            diffText = `Chickens are ${Math.abs(diff).toLocaleString()} more than subscribers (${multiplier}x more)`;
+          } else {
+            // they are equal
+            diffText = "Subscribers and chickens are equal";
+          }
+          
+          currentDiffEl.textContent = `Current difference: ${diffText}`;
+        } else {
+          currentDiffEl.textContent = "Current difference: No valid data available";
+        }
+
         const missingSubs = rows.filter(r => r.subscribers === null || r.subscribers === "" || r.subscribers === undefined).length;
         const missingChick = rows.filter(r => r.chickens === null || r.chickens === "" || r.chickens === undefined).length;
         statsEl.textContent = `Rows loaded: ${rows.length} • Missing subscribers: ${missingSubs} • Missing chickens: ${missingChick}`;
@@ -249,7 +278,7 @@
         const text = await res.text();
         rows = parseCSV(text);
 
-        // Force sort by day (just in case)
+        // force sort by day (just in case)
         rows.sort((a, b) => Number(a.day) - Number(b.day));
 
         render();
@@ -259,7 +288,7 @@
         el.addEventListener("change", render)
       );
 
-      // Auto-load on page open
+      // auto-load on page open
       loadRepoCSV().catch(err => {
         statsEl.textContent = "Could not load youtube_chickens.csv from repo yet.";
         console.error(err);
