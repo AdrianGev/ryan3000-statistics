@@ -8,7 +8,7 @@ load_dotenv()
 
 API_KEY = os.getenv("YOUTUBE_API_KEY")
 if not API_KEY:
-    raise RuntimeError("missing YOUTUBE_API_KEY in the .env file dude")
+    raise RuntimeError("Missing YOUTUBE_API_KEY")
 
 CHANNEL_ID = "UCjXPeBJ0L57q7548RtW99Fg"
 

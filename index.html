@@ -231,7 +231,7 @@
       function buildSeriesFromRows(seriesKey, xKey) {
         return rows
           .map(r => {
-            const x = xKey === "publishedAt" ? r.publishedAt : Number(r.day);
+            const x = Number(r.day);
             const y = Number(r[seriesKey]);
             return { x, y };
           })
@@ -280,7 +280,7 @@
                 segmentLabelsPlugin: { showDelta: showDeltaEl.checked, showMult: showMultEl.checked },
               },
               scales: {
-                x: { title: { display: true, text: "Day" } },
+                x: { type: "linear", title: { display: true, text: "Day" } },
                 yChickens: {
                   type: "linear",
                   position: "left",
@@ -373,11 +373,28 @@
         render();
       });
 
+      async function loadRepoCSV() {
+        const res = await fetch("./youtube_chickens.csv?cb=" + Date.now());
+        const text = await res.text();
+        rows = parseCSV(text);
+
+        // Force sort by day (just in case)
+        rows.sort((a, b) => Number(a.day) - Number(b.day));
+
+        render();
+      }
+
       [xSel, ySel, modeSel, showDeltaEl, showMultEl, showLegendEl].forEach(el =>
         el.addEventListener("change", render)
       );
 
       setControlsVisibility();
+
+      // Auto-load on page open
+      loadRepoCSV().catch(err => {
+        statsEl.textContent = "Could not load youtube_chickens.csv from repo yet.";
+        console.error(err);
+      });
     </script>
   </body>
 </html>
