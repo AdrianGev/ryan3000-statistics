@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chickens vs Subscribers</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      body { font-family: system-ui, Arial, sans-serif; margin: 24px; max-width: 1100px; }
+      .row { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+      .card { border: 1px solid #ddd; border-radius: 12px; padding: 16px; }
+      input, select, button { padding: 8px; }
+      canvas { width: 100%; height: 480px; }
+      .muted { color: #666; font-size: 14px; }
+      .controls { align-items: flex-end; }
+      label { user-select: none; }
+    </style>
+  </head>
+  <body>
+    <h1>Chickens vs Subscribers</h1>
+    <p class="muted">Upload your <code>youtube_chickens.csv</code> and it graphs it.</p>
+
+    <div class="card row controls">
+      <div>
+        <b>CSV file:</b><br />
+        <input id="file" type="file" accept=".csv" />
+      </div>
+
+      <div>
+        <b>Mode:</b><br />
+        <select id="mode">
+          <option value="both_line">Both (two axes)</option>
+          <option value="single">Single series</option>
+          <option value="scatter_ch_vs_sub">Scatter (chickens vs subscribers)</option>
+        </select>
+      </div>
+
+      <div id="singleSeriesControls">
+        <b>Y series:</b><br />
+        <select id="y">
+          <option value="chickens">chickens</option>
+          <option value="subscribers">subscribers</option>
+        </select>
+      </div>
+
+      <div id="singleXAxisControls">
+        <b>X-axis:</b><br />
+        <select id="x">
+          <option value="day">day</option>
+          <option value="publishedAt">publishedAt</option>
+        </select>
+      </div>
+
+      <div style="min-width: 210px;">
+        <b>Labels:</b><br />
+        <label style="display:block; margin-top:6px;">
+          <input type="checkbox" id="showDelta" />
+          Show Δ (difference)
+        </label>
+        <label style="display:block; margin-top:6px;">
+          <input type="checkbox" id="showMult" />
+          Show × (multiplier)
+        </label>
+        <label style="display:block; margin-top:6px;">
+          <input type="checkbox" id="showLegend" checked />
+          Show legend (key)
+        </label>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: 16px;">
+      <canvas id="chart"></canvas>
+      <p id="stats" class="muted"></p>
+    </div>
+
+    <script>
+      const fileInput = document.getElementById("file");
+      const xSel = document.getElementById("x");
+      const ySel = document.getElementById("y");
+      const modeSel = document.getElementById("mode");
+      const statsEl = document.getElementById("stats");
+
+      const showDeltaEl = document.getElementById("showDelta");
+      const showMultEl = document.getElementById("showMult");
+      const showLegendEl = document.getElementById("showLegend");
+
+      const singleSeriesControls = document.getElementById("singleSeriesControls");
+      const singleXAxisControls = document.getElementById("singleXAxisControls");
+
+      let chart = null;
+      let rows = [];
+
+      function splitCSVLine(line) {
+        const result = [];
+        let cur = "";
+        let inQuotes = false;
+
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i];
+
+          if (ch === '"') {
+            if (inQuotes && line[i + 1] === '"') {
+              cur += '"';
+              i++;
+            } else {
+              inQuotes = !inQuotes;
+            }
+          } else if (ch === "," && !inQuotes) {
+            result.push(cur);
+            cur = "";
+          } else {
+            cur += ch;
+          }
+        }
+        result.push(cur);
+        return result.map(s => s.trim());
+      }
+
+      function parseCSV(text) {
+        const lines = text.replace(/\r/g, "").trim().split("\n");
+        if (lines.length < 2) return [];
+
+        const headers = lines[0].split(",").map(h => h.trim());
+        const out = [];
+
+        for (let i = 1; i < lines.length; i++) {
+          const parts = splitCSVLine(lines[i]);
+          if (parts.length !== headers.length) continue;
+
+          const row = {};
+          headers.forEach((h, j) => (row[h] = parts[j]));
+
+          ["day", "subscribers", "chickens"].forEach(k => {
+            if (row[k] !== undefined && row[k] !== "") {
+              const n = Number(row[k]);
+              row[k] = Number.isFinite(n) ? n : row[k];
+            }
+          });
+
+          out.push(row);
+        }
+        return out;
+      }
+
+      function fmtDelta(n) {
+        if (!Number.isFinite(n)) return "";
+        const sign = n > 0 ? "+" : "";
+        return sign + n.toLocaleString();
+      }
+
+      function fmtMult(a, b) {
+        if (!Number.isFinite(a) || !Number.isFinite(b) || a === 0) return "";
+        const r = b / a;
+        if (!Number.isFinite(r) || r <= 0) return "";
+        if (Math.abs(r - Math.round(r)) < 1e-10) return `${Math.round(r)}x`;
+        if (r >= 10) return `${r.toFixed(1)}x`;
+        return `${r.toFixed(2)}x`;
+      }
+
+      const segmentLabelsPlugin = {
+        id: "segmentLabelsPlugin",
+        afterDatasetsDraw(chart, args, pluginOptions) {
+          const { ctx } = chart;
+          const showDelta = !!pluginOptions.showDelta;
+          const showMult = !!pluginOptions.showMult;
+
+          if (!showDelta && !showMult) return;
+
+          ctx.save();
+          ctx.font = "12px system-ui, Arial, sans-serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+
+          for (let di = 0; di < chart.data.datasets.length; di++) {
+            const meta = chart.getDatasetMeta(di);
+            if (!meta || meta.hidden) continue;
+
+            const ds = chart.data.datasets[di];
+            const data = ds.data;
+
+            // Offset label direction so 2 series are readable
+            const offsetY = di % 2 === 0 ? -14 : 14;
+
+            for (let i = 1; i < data.length; i++) {
+              const p0 = meta.data[i - 1];
+              const p1 = meta.data[i];
+              if (!p0 || !p1) continue;
+
+              const v0 = data[i - 1]?.y;
+              const v1 = data[i]?.y;
+              if (!Number.isFinite(v0) || !Number.isFinite(v1)) continue;
+
+              const x0 = p0.x, y0 = p0.y;
+              const x1 = p1.x, y1 = p1.y;
+
+              if (showMult) {
+                const mx = (x0 + x1) / 2;
+                const my = (y0 + y1) / 2 + offsetY;
+
+                const txt = fmtMult(v0, v1);
+                if (txt) {
+                  ctx.fillStyle = "#111";
+                  ctx.fillText(txt, mx, my);
+                }
+              }
+
+              if (showDelta) {
+                const dx = x1;
+                const dy = y1 + offsetY;
+
+                const txt = fmtDelta(v1 - v0);
+                if (txt) {
+                  ctx.fillStyle = "#111";
+                  ctx.fillText(txt, dx, dy);
+                }
+              }
+            }
+          }
+
+          ctx.restore();
+        }
+      };
+
+      function setControlsVisibility() {
+        const m = modeSel.value;
+        const single = (m === "single");
+        singleSeriesControls.style.display = single ? "block" : "none";
+        singleXAxisControls.style.display = single ? "block" : "none";
+      }
+
+      function buildSeriesFromRows(seriesKey, xKey) {
+        return rows
+          .map(r => {
+            const x = xKey === "publishedAt" ? r.publishedAt : Number(r.day);
+            const y = Number(r[seriesKey]);
+            return { x, y };
+          })
+          .filter(p => p.x !== "" && p.x != null && Number.isFinite(p.y));
+      }
+
+      function render() {
+        if (!rows.length) return;
+
+        setControlsVisibility();
+
+        const mode = modeSel.value;
+
+        let cfg;
+
+        if (mode === "both_line") {
+          const chickens = buildSeriesFromRows("chickens", "day").filter(p => Number.isFinite(p.x));
+          const subs = buildSeriesFromRows("subscribers", "day").filter(p => Number.isFinite(p.x));
+
+          cfg = {
+            type: "line",
+            data: {
+              datasets: [
+                {
+                  label: "Chickens",
+                  data: chickens,
+                  yAxisID: "yChickens",
+                  tension: 0.2,
+                  pointRadius: 3,
+                },
+                {
+                  label: "Subscribers",
+                  data: subs,
+                  yAxisID: "ySubs",
+                  tension: 0.2,
+                  pointRadius: 3,
+                },
+              ],
+            },
+            options: {
+              parsing: false,
+              responsive: true,
+              interaction: { mode: "nearest", intersect: false },
+              plugins: {
+                legend: { display: showLegendEl.checked, position: "right" },
+                segmentLabelsPlugin: { showDelta: showDeltaEl.checked, showMult: showMultEl.checked },
+              },
+              scales: {
+                x: { title: { display: true, text: "Day" } },
+                yChickens: {
+                  type: "linear",
+                  position: "left",
+                  title: { display: true, text: "Chickens" },
+                },
+                ySubs: {
+                  type: "linear",
+                  position: "right",
+                  title: { display: true, text: "Subscribers" },
+                  grid: { drawOnChartArea: false },
+                },
+              },
+            },
+            plugins: [segmentLabelsPlugin],
+          };
+        } else if (mode === "scatter_ch_vs_sub") {
+          const points = rows
+            .map(r => ({ x: Number(r.subscribers), y: Number(r.chickens) }))
+            .filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
+
+          cfg = {
+            type: "scatter",
+            data: {
+              datasets: [
+                {
+                  label: "Chickens vs Subscribers",
+                  data: points,
+                },
+              ],
+            },
+            options: {
+              parsing: false,
+              responsive: true,
+              plugins: {
+                legend: { display: showLegendEl.checked, position: "right" },
+              },
+              scales: {
+                x: { title: { display: true, text: "Subscribers" } },
+                y: { title: { display: true, text: "Chickens" } },
+              },
+            },
+          };
+        } else {
+          const xKey = xSel.value;
+          const yKey = ySel.value;
+
+          const data = buildSeriesFromRows(yKey, xKey);
+
+          cfg = {
+            type: "line",
+            data: {
+              datasets: [
+                {
+                  label: `${yKey} vs ${xKey}`,
+                  data,
+                  tension: 0.2,
+                  pointRadius: 3,
+                },
+              ],
+            },
+            options: {
+              parsing: false,
+              responsive: true,
+              plugins: {
+                legend: { display: showLegendEl.checked, position: "right" },
+                segmentLabelsPlugin: { showDelta: showDeltaEl.checked, showMult: showMultEl.checked },
+              },
+              scales: {
+                x: { title: { display: true, text: xKey } },
+                y: { title: { display: true, text: yKey } },
+              },
+            },
+            plugins: [segmentLabelsPlugin],
+          };
+        }
+
+        if (chart) chart.destroy();
+        chart = new Chart(document.getElementById("chart"), cfg);
+
+        const missingSubs = rows.filter(r => r.subscribers === null || r.subscribers === "" || r.subscribers === undefined).length;
+        const missingChick = rows.filter(r => r.chickens === null || r.chickens === "" || r.chickens === undefined).length;
+        statsEl.textContent = `Rows loaded: ${rows.length} • Missing subscribers: ${missingSubs} • Missing chickens: ${missingChick}`;
+      }
+
+      fileInput.addEventListener("change", async (e) => {
+        const f = e.target.files?.[0];
+        if (!f) return;
+        const text = await f.text();
+        rows = parseCSV(text);
+        render();
+      });
+
+      [xSel, ySel, modeSel, showDeltaEl, showMultEl, showLegendEl].forEach(el =>
+        el.addEventListener("change", render)
+      );
+
+      setControlsVisibility();
+    </script>
+  </body>
+</html>
