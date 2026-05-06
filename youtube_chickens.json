@@ -974,5 +974,13 @@
     "videoId": "1tBHtRxQiXg",
     "subscribers": 621000,
     "chickens": 100000
+  },
+  {
+    "day": 123,
+    "publishedAt": "2026-05-06T02:57:25Z",
+    "title": "BLUE CHICKEN",
+    "videoId": "w8kY5AL0Nl4",
+    "subscribers": 622000,
+    "chickens": 100000
   }
 ]
